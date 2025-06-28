@@ -90,9 +90,13 @@ export default function ChainSentryClient() {
         </CardContent>
       </Card>
       
-      {state?.report && state?.code && (
+      {state?.vulnerabilities && state?.code && state?.blockchainType && (
         <div className="mt-8">
-          <ReportDisplay report={state.report} code={state.code} />
+          <ReportDisplay 
+            vulnerabilities={state.vulnerabilities} 
+            code={state.code}
+            blockchainType={state.blockchainType}
+          />
         </div>
       )}
     </div>

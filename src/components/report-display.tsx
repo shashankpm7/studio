@@ -1,24 +1,62 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import type { Vulnerability } from '@/types';
-import { parseVulnerabilityReport } from '@/lib/report-parser';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { SeverityIcon } from '@/components/icons';
 import CodeViewer from './code-viewer';
-import { Separator } from './ui/separator';
+import { Button } from './ui/button';
+import { generateDetailedReportAction } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { ScrollArea } from './ui/scroll-area';
+import { Loader2 } from 'lucide-react';
 
 interface ReportDisplayProps {
-  report: string;
+  vulnerabilities: Vulnerability[];
   code: string;
+  blockchainType: 'ETH' | 'SOL' | 'ETC';
 }
 
-export default function ReportDisplay({ report, code }: ReportDisplayProps) {
-  const [activeVulnerability, setActiveVulnerability] = useState<Vulnerability | null>(null);
+function GenerateReportButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Generating...
+        </>
+      ) : (
+        'Generate Full Report'
+      )}
+    </Button>
+  );
+}
 
-  const vulnerabilities = useMemo(() => parseVulnerabilityReport(report), [report]);
+
+export default function ReportDisplay({ vulnerabilities, code, blockchainType }: ReportDisplayProps) {
+  const [activeVulnerability, setActiveVulnerability] = useState<Vulnerability | null>(null);
+  const { toast } = useToast();
+  
+  const [detailedReportState, formAction] = useActionState(generateDetailedReportAction, null);
+  const [isReportDialogOpen, setReportDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (detailedReportState?.report) {
+      setReportDialogOpen(true);
+    }
+    if (detailedReportState?.error) {
+      toast({
+        variant: 'destructive',
+        title: 'Report Generation Failed',
+        description: detailedReportState.error,
+      });
+    }
+  }, [detailedReportState, toast]);
+
 
   const highlightedLines = useMemo(() => {
     if (activeVulnerability) {
@@ -29,14 +67,16 @@ export default function ReportDisplay({ report, code }: ReportDisplayProps) {
 
   const summary = useMemo(() => {
     const counts = { High: 0, Medium: 0, Low: 0, Unknown: 0 };
-    vulnerabilities.forEach(v => counts[v.severity]++);
+    vulnerabilities.forEach(v => {
+      counts[v.severity] = (counts[v.severity] || 0) + 1;
+    });
     return counts;
   }, [vulnerabilities]);
 
   useEffect(() => {
     // Reset active vulnerability when report changes
     setActiveVulnerability(null);
-  }, [report]);
+  }, [vulnerabilities]);
 
   if (vulnerabilities.length === 0) {
     return (
@@ -52,55 +92,85 @@ export default function ReportDisplay({ report, code }: ReportDisplayProps) {
   }
 
   return (
-    <Card className="mt-8 animate-in fade-in-50 duration-500">
-      <CardHeader>
-        <CardTitle className="font-headline text-2xl">Vulnerability Report</CardTitle>
-        <CardDescription>
-          Found {vulnerabilities.length} potential vulnerabilities. Select an issue to see details and highlighted code.
-        </CardDescription>
-        <div className="flex flex-wrap gap-4 pt-4">
-            {summary.High > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="High" /> {summary.High} High Severity</div>}
-            {summary.Medium > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="Medium" /> {summary.Medium} Medium Severity</div>}
-            {summary.Low > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="Low" /> {summary.Low} Low Severity</div>}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="max-h-[600px] overflow-y-auto pr-2">
-            <Accordion type="single" collapsible className="w-full" onValueChange={(id) => setActiveVulnerability(vulnerabilities.find(v => v.id === id) || null)}>
-              {vulnerabilities.map(vuln => (
-                <AccordionItem value={vuln.id} key={vuln.id}>
-                  <AccordionTrigger>
-                    <div className="flex items-center gap-3 text-left">
-                       <SeverityIcon severity={vuln.severity} className="h-5 w-5 flex-shrink-0" />
-                       <span>{vuln.title}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold mb-1">Description</h4>
-                      <p className="text-sm text-muted-foreground">{vuln.description}</p>
-                    </div>
-                    {vuln.location && (
-                      <div>
-                        <h4 className="font-semibold mb-1">Location</h4>
-                        <p className="text-sm text-muted-foreground font-mono">{vuln.location}</p>
+    <>
+      <Card className="mt-8 animate-in fade-in-50 duration-500">
+        <CardHeader>
+           <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="font-headline text-2xl">Vulnerability Report</CardTitle>
+              <CardDescription>
+                Found {vulnerabilities.length} potential vulnerabilities. Select an issue to see details and highlighted code.
+              </CardDescription>
+            </div>
+            <form action={formAction}>
+              <input type="hidden" name="contractCode" value={code} />
+              <input type="hidden" name="vulnerabilities" value={JSON.stringify(vulnerabilities)} />
+              <input type="hidden" name="blockchain" value={blockchainType} />
+              <GenerateReportButton />
+            </form>
+          </div>
+
+          <div className="flex flex-wrap gap-4 pt-4">
+              {summary.High > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="High" /> {summary.High} High Severity</div>}
+              {summary.Medium > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="Medium" /> {summary.Medium} Medium Severity</div>}
+              {summary.Low > 0 && <div className="flex items-center gap-2"><SeverityIcon severity="Low" /> {summary.Low} Low Severity</div>}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="max-h-[600px] overflow-y-auto pr-2">
+              <Accordion type="single" collapsible className="w-full" onValueChange={(id) => setActiveVulnerability(vulnerabilities.find(v => v.id === id) || null)}>
+                {vulnerabilities.map(vuln => (
+                  <AccordionItem value={vuln.id} key={vuln.id}>
+                    <AccordionTrigger>
+                      <div className="flex items-center gap-3 text-left">
+                         <SeverityIcon severity={vuln.severity} className="h-5 w-5 flex-shrink-0" />
+                         <span>{vuln.title}</span>
                       </div>
-                    )}
-                    <div>
-                      <h4 className="font-semibold mb-1">Recommendation</h4>
-                      <p className="text-sm text-muted-foreground">{vuln.recommendation}</p>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4">
+                      <div>
+                        <h4 className="font-semibold mb-1">Description</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{vuln.description}</p>
+                      </div>
+                      {vuln.location && (
+                        <div>
+                          <h4 className="font-semibold mb-1">Location</h4>
+                          <p className="text-sm text-muted-foreground font-mono">{vuln.location}</p>
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-semibold mb-1">Recommendation</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{vuln.recommendation}</p>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+            <div className="relative">
+               <CodeViewer code={code} highlightedLines={highlightedLines} />
+            </div>
           </div>
-          <div className="relative">
-             <CodeViewer code={code} highlightedLines={highlightedLines} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={isReportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <AlertDialogContent className="max-w-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-headline">Detailed Vulnerability Report</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is a comprehensive AI-generated report based on the identified vulnerabilities.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ScrollArea className="h-[60vh] rounded-md border p-4">
+            <pre className="text-sm whitespace-pre-wrap font-mono">{detailedReportState?.report}</pre>
+          </ScrollArea>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
