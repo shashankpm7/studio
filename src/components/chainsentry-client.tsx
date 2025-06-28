@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useToast } from "@/hooks/use-toast";
 import { scanContractAction } from '@/app/actions';
 
@@ -35,7 +35,7 @@ function SubmitButton() {
 }
 
 export default function ChainSentryClient() {
-  const [state, formAction] = useFormState(scanContractAction, initialState);
+  const [state, formAction] = useActionState(scanContractAction, initialState);
   const { toast } = useToast();
 
   useEffect(() => {
