@@ -14,9 +14,9 @@ const NewsArticleSchema = z.object({
   title: z.string().describe('The headline of the news article.'),
   summary: z.string().describe('A brief summary of the news article.'),
   source: z.string().describe('The source of the news article (e.g., CoinDesk).'),
-  url: z.string().url().describe('The URL to the full news article.'),
+  url: z.string().describe('The URL to the full news article.'),
   sentiment: z.enum(['Positive', 'Negative', 'Neutral']).describe('The overall sentiment of the article regarding the crypto market.'),
-  imageUrl: z.string().url().describe('A URL for an image related to the article.'),
+  imageUrl: z.string().describe('A URL for an image related to the article.'),
 });
 
 const GetTrendingCryptoNewsOutputSchema = z.object({
