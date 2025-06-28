@@ -11,7 +11,6 @@ import { Button } from './ui/button';
 import { generateDetailedReportAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import jsPDF from 'jspdf';
 
 interface ReportDisplayProps {
   vulnerabilities: Vulnerability[];
@@ -44,18 +43,21 @@ export default function ReportDisplay({ vulnerabilities, code, blockchainType }:
 
   useEffect(() => {
     if (detailedReportState?.report) {
-      const doc = new jsPDF();
-      const reportText = detailedReportState.report;
-      
-      doc.setFont("courier", "normal");
-      doc.setFontSize(10);
-      
-      const lines = doc.splitTextToSize(reportText, 180);
-      doc.text(lines, 10, 10);
-      
-      const vulnerabilityName = vulnerabilities.length > 0 ? vulnerabilities[0].title : 'vulnerability';
-      const fileName = `${vulnerabilityName.replace(/\s+/g, '_')}_report.pdf`;
-      doc.save(fileName);
+      import('jspdf').then(module => {
+        const jsPDF = module.default;
+        const doc = new jsPDF();
+        const reportText = detailedReportState.report;
+        
+        doc.setFont("courier", "normal");
+        doc.setFontSize(10);
+        
+        const lines = doc.splitTextToSize(reportText, 180);
+        doc.text(lines, 10, 10);
+        
+        const vulnerabilityName = vulnerabilities.length > 0 ? vulnerabilities[0].title : 'vulnerability';
+        const fileName = `${vulnerabilityName.replace(/\s+/g, '_')}_report.pdf`;
+        doc.save(fileName);
+      });
     }
     if (detailedReportState?.error) {
       toast({
