@@ -1,5 +1,6 @@
 import { Shield } from "lucide-react";
 import ChainSentryClient from "@/components/chainsentry-client";
+import TrendingNews from "@/components/trending-news";
 
 export default function Home() {
   return (
@@ -25,6 +26,8 @@ export default function Home() {
           </div>
 
           <ChainSentryClient />
+
+          <TrendingNews />
 
         </div>
       </main>
