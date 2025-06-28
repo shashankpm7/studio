@@ -10,9 +10,8 @@ import CodeViewer from './code-viewer';
 import { Button } from './ui/button';
 import { generateDetailedReportAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { ScrollArea } from './ui/scroll-area';
 import { Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 interface ReportDisplayProps {
   vulnerabilities: Vulnerability[];
@@ -30,7 +29,7 @@ function GenerateReportButton() {
           Generating...
         </>
       ) : (
-        'Generate Full Report'
+        'Generate & Download Report'
       )}
     </Button>
   );
@@ -42,11 +41,21 @@ export default function ReportDisplay({ vulnerabilities, code, blockchainType }:
   const { toast } = useToast();
   
   const [detailedReportState, formAction] = useActionState(generateDetailedReportAction, null);
-  const [isReportDialogOpen, setReportDialogOpen] = useState(false);
 
   useEffect(() => {
     if (detailedReportState?.report) {
-      setReportDialogOpen(true);
+      const doc = new jsPDF();
+      const reportText = detailedReportState.report;
+      
+      doc.setFont("courier", "normal");
+      doc.setFontSize(10);
+      
+      const lines = doc.splitTextToSize(reportText, 180);
+      doc.text(lines, 10, 10);
+      
+      const vulnerabilityName = vulnerabilities.length > 0 ? vulnerabilities[0].title : 'vulnerability';
+      const fileName = `${vulnerabilityName.replace(/\s+/g, '_')}_report.pdf`;
+      doc.save(fileName);
     }
     if (detailedReportState?.error) {
       toast({
@@ -55,7 +64,7 @@ export default function ReportDisplay({ vulnerabilities, code, blockchainType }:
         description: detailedReportState.error,
       });
     }
-  }, [detailedReportState, toast]);
+  }, [detailedReportState, toast, vulnerabilities]);
 
 
   const highlightedLines = useMemo(() => {
@@ -154,23 +163,6 @@ export default function ReportDisplay({ vulnerabilities, code, blockchainType }:
           </div>
         </CardContent>
       </Card>
-
-      <AlertDialog open={isReportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <AlertDialogContent className="max-w-3xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-headline">Detailed Vulnerability Report</AlertDialogTitle>
-            <AlertDialogDescription>
-              This is a comprehensive AI-generated report based on the identified vulnerabilities.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <ScrollArea className="h-[60vh] rounded-md border p-4">
-            <pre className="text-sm whitespace-pre-wrap font-mono">{detailedReportState?.report}</pre>
-          </ScrollArea>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
